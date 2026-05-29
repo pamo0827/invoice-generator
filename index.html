@@ -105,6 +105,13 @@
     box-shadow:0 4px 24px rgba(0,0,0,.18);
     color:var(--dark);position:relative;
     padding-bottom:20mm;
+    /* 背景色・配色を画面と印刷で一致させる */
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .sheet *{
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
   }
   .sheet *{line-height:1.4;}
 
@@ -187,7 +194,7 @@
   <!-- ========== 入力（左） ========== -->
   <div class="pane-input">
     <h1>請求書ジェネレーター</h1>
-    <p class="sub">入力内容はこのブラウザ内（localStorage）にのみ保存されます。</p>
+    <p class="sub">入力内容はサーバーに送信されません。開発者は一切保存・収集しません。</p>
 
     <fieldset>
       <legend>請求情報</legend>
@@ -398,6 +405,23 @@ function yen(n){
   return "¥" + num.toLocaleString("ja-JP");
 }
 
+// "2026年5月29日" / "2026-05-29" / "2026/5/29" → "20260529"
+function dateToYmd(s){
+  const m = (s || "").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  if (!m) return "";
+  return m[1] + m[2].padStart(2, "0") + m[3].padStart(2, "0");
+}
+
+// PDF保存時のデフォルトファイル名（ブラウザは document.title を使用）
+function updateTitle(){
+  const client = document.getElementById("clientName").value.trim();
+  const ymd    = dateToYmd(document.getElementById("invoiceDate").value);
+  let title = "請求書";
+  if (client) title += "_" + client;
+  if (ymd)    title += "_" + ymd;
+  document.title = title;
+}
+
 // ---- 明細行のDOM生成 ----
 function makeItemRow(title = "", detail = "") {
   const div = document.createElement("div");
@@ -449,6 +473,9 @@ function render() {
 
   // 金額
   document.getElementById("p-total").textContent = yen(document.getElementById("total").value);
+
+  // 保存ファイル名
+  updateTitle();
 
   // 明細テーブル
   const tbody = document.getElementById("p-items");
