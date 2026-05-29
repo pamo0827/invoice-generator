@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>請求書ジェネレーター</title>
+<style>
+  :root{
+    --accent:#1A3C5E;
+    --light-bg:#F0F4F8;
+    --stripe:#F8FAFC;
+    --gray:#555555;
+    --dark:#111111;
+    --red:#CC3333;
+    --border:#DDDDDD;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    color:var(--dark);
+    background:#e9edf1;
+  }
+
+  /* ===== レイアウト ===== */
+  .app{display:flex;min-height:100vh;}
+  .pane-input{
+    width:42%;
+    min-width:380px;
+    max-width:560px;
+    padding:24px;
+    background:#fff;
+    border-right:1px solid #d4dbe2;
+    overflow-y:auto;
+    height:100vh;
+  }
+  .pane-preview{
+    flex:1;
+    padding:32px;
+    overflow-y:auto;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+
+  /* ===== フォーム ===== */
+  .pane-input h1{
+    font-size:18px;margin:0 0 4px;color:var(--accent);
+  }
+  .pane-input .sub{font-size:12px;color:var(--gray);margin:0 0 20px;}
+  fieldset{
+    border:1px solid #e0e5ea;border-radius:8px;
+    margin:0 0 16px;padding:14px 16px 16px;
+  }
+  legend{font-size:13px;font-weight:700;color:var(--accent);padding:0 6px;}
+  .field{margin-bottom:10px;}
+  .field:last-child{margin-bottom:0;}
+  label{display:block;font-size:11px;color:var(--gray);margin-bottom:3px;}
+  input[type=text],input[type=number],input[type=email],textarea{
+    width:100%;padding:7px 9px;font-size:13px;
+    border:1px solid #cdd5dd;border-radius:5px;font-family:inherit;
+    background:#fff;
+  }
+  input:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(26,60,94,.12);}
+  textarea{resize:vertical;min-height:48px;line-height:1.5;}
+  .row{display:flex;gap:10px;}
+  .row>.field{flex:1;}
+  .hint{font-size:10px;color:#8a93a0;margin-top:2px;}
+
+  /* 明細 */
+  .item{
+    border:1px solid #e0e5ea;border-radius:6px;padding:10px;margin-bottom:10px;
+    background:#fafbfc;position:relative;
+  }
+  .item .del{
+    position:absolute;top:6px;right:6px;border:none;background:transparent;
+    color:#b04;cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:4px;
+  }
+  .item .del:hover{background:#fde8e8;}
+
+  /* ボタン */
+  .btn{
+    border:none;border-radius:6px;padding:9px 14px;font-size:13px;cursor:pointer;
+    font-family:inherit;font-weight:600;
+  }
+  .btn-add{background:var(--light-bg);color:var(--accent);border:1px dashed #9bb0c4;width:100%;}
+  .btn-add:hover{background:#e4ebf2;}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
+  .btn-primary{background:var(--accent);color:#fff;flex:1;}
+  .btn-primary:hover{background:#14304b;}
+  .btn-ghost{background:#fff;color:var(--gray);border:1px solid #cdd5dd;}
+  .btn-ghost:hover{background:#f3f5f7;}
+
+  /* ===== 上部バー（プレビュー側） ===== */
+  .preview-bar{
+    width:210mm;max-width:100%;display:flex;justify-content:space-between;
+    align-items:center;margin-bottom:14px;gap:12px;
+  }
+  .preview-bar .tip{font-size:11px;color:#5a6470;}
+
+  /* ===== A4 請求書プレビュー ===== */
+  .sheet{
+    width:210mm;min-height:297mm;background:#fff;
+    box-shadow:0 4px 24px rgba(0,0,0,.18);
+    color:var(--dark);position:relative;
+    padding-bottom:20mm;
+  }
+  .sheet *{line-height:1.4;}
+
+  .inv-header{
+    background:var(--accent);color:#fff;height:22mm;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 20mm;
+  }
+  .inv-title{font-size:22pt;font-weight:700;letter-spacing:.5em;}
+  .inv-issue{font-size:9pt;}
+
+  .inv-body{padding:0 20mm;}
+  .parties{display:flex;justify-content:space-between;margin-top:13mm;gap:10mm;}
+  .party{flex:1;}
+  .party .tag{font-size:8pt;color:var(--gray);}
+  .party .name-row{display:flex;align-items:baseline;gap:8px;margin:3mm 0 5mm;}
+  .client .name{font-size:16pt;font-weight:700;}
+  .client .ml{font-size:11pt;}
+  .issuer .name{font-size:14pt;font-weight:700;margin:3mm 0 5mm;}
+  .party .addr{font-size:8pt;color:var(--gray);margin:0;line-height:1.7;}
+
+  .amount-box{
+    background:var(--light-bg);border-radius:3mm;margin-top:13mm;
+    height:16mm;display:flex;align-items:center;justify-content:space-between;
+    padding:0 6mm;
+  }
+  .amount-box .lbl{font-size:10pt;font-weight:700;color:var(--accent);}
+  .amount-box .val{font-size:20pt;font-weight:700;color:var(--accent);}
+
+  .due{font-size:10pt;font-weight:700;color:var(--red);margin:5mm 0 0;}
+
+  .section-title{font-size:11pt;font-weight:700;color:var(--accent);margin:13mm 0 4mm;}
+  .section-title .proj{font-size:10pt;color:var(--gray);font-weight:400;margin-left:6mm;}
+
+  table.items{width:100%;border-collapse:collapse;}
+  table.items thead th{
+    background:var(--accent);color:#fff;font-size:8pt;font-weight:700;
+    text-align:left;padding:2.2mm 4mm;
+  }
+  table.items tbody tr:nth-child(odd){background:var(--stripe);}
+  table.items td{padding:3mm 4mm;border-bottom:.3px solid var(--border);vertical-align:top;}
+  td .it-title{font-size:9pt;color:var(--dark);}
+  td .it-detail{font-size:7.5pt;color:var(--gray);margin-top:1.5mm;padding-left:3mm;}
+  td .it-detail .ln{display:block;}
+
+  .bank{
+    background:var(--light-bg);border-radius:2mm;padding:5mm 6mm;margin-top:4mm;
+  }
+  .bank dl{display:grid;grid-template-columns:30mm 1fr;gap:2mm 0;margin:0;}
+  .bank dt{font-size:8pt;font-weight:700;color:var(--gray);}
+  .bank dd{font-size:9pt;color:var(--dark);margin:0;}
+
+  .notes{margin-top:13mm;}
+  .notes p{font-size:8pt;color:var(--gray);margin:0 0 2mm;}
+
+  .empty{color:#b9c1ca;}
+
+  /* ===== 印刷（PDF保存） ===== */
+  @page{size:A4;margin:0;}
+  @media print{
+    body{background:#fff;}
+    .pane-input,.preview-bar{display:none !important;}
+    .app{display:block;}
+    .pane-preview{padding:0;height:auto;display:block;overflow:visible;}
+    .sheet{box-shadow:none;width:210mm;min-height:297mm;margin:0;}
+  }
+
+  /* ===== レスポンシブ ===== */
+  @media (max-width:900px){
+    .app{flex-direction:column;}
+    .pane-input{width:100%;max-width:none;height:auto;border-right:none;border-bottom:1px solid #d4dbe2;}
+    .pane-preview{height:auto;}
+    .sheet,.preview-bar{transform-origin:top left;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ========== 入力（左） ========== -->
+  <div class="pane-input">
+    <h1>請求書ジェネレーター</h1>
+    <p class="sub">入力内容はこのブラウザ内（localStorage）にのみ保存されます。</p>
+
+    <fieldset>
+      <legend>請求情報</legend>
+      <div class="field">
+        <label>請求書番号</label>
+        <input type="text" id="invoiceNumber" placeholder="No. 2026-0529">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>発行日</label>
+          <input type="text" id="invoiceDate" placeholder="2026年5月29日">
+        </div>
+        <div class="field">
+          <label>お振込期日</label>
+          <input type="text" id="paymentDue" placeholder="2026年5月31日">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>請求先</legend>
+      <div class="field">
+        <label>会社名・氏名</label>
+        <input type="text" id="clientName" placeholder="○○株式会社">
+      </div>
+      <div class="field">
+        <label>郵便番号</label>
+        <input type="text" id="clientZip" placeholder="〒000-0000">
+      </div>
+      <div class="field">
+        <label>住所1</label>
+        <input type="text" id="clientAddr1" placeholder="都道府県市区町村">
+      </div>
+      <div class="field">
+        <label>住所2（建物名など）</label>
+        <input type="text" id="clientAddr2" placeholder="ビル名・部屋番号">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>請求元（あなた）</legend>
+      <div class="field">
+        <label>氏名・屋号</label>
+        <input type="text" id="issuerName" placeholder="山田 太郎">
+      </div>
+      <div class="field">
+        <label>郵便番号</label>
+        <input type="text" id="issuerZip" placeholder="〒000-0000">
+      </div>
+      <div class="field">
+        <label>住所1</label>
+        <input type="text" id="issuerAddr1" placeholder="都道府県市区町村">
+      </div>
+      <div class="field">
+        <label>住所2（建物名など）</label>
+        <input type="text" id="issuerAddr2" placeholder="ビル名・部屋番号">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>電話番号</label>
+          <input type="text" id="issuerTel" placeholder="000-0000-0000">
+        </div>
+        <div class="field">
+          <label>メールアドレス</label>
+          <input type="email" id="issuerEmail" placeholder="you@example.com">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>振込先</legend>
+      <div class="row">
+        <div class="field"><label>金融機関</label><input type="text" id="bankName" placeholder="○○銀行"></div>
+        <div class="field"><label>支店名</label><input type="text" id="bankBranch" placeholder="○○支店"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>口座種別</label><input type="text" id="bankType" placeholder="普通口座"></div>
+        <div class="field"><label>口座番号</label><input type="text" id="bankNumber" placeholder="0000000"></div>
+      </div>
+      <div class="field"><label>口座名義</label><input type="text" id="bankHolder" placeholder="ヤマダ タロウ"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>作業明細</legend>
+      <div class="field">
+        <label>プロジェクト名（任意）</label>
+        <input type="text" id="project" placeholder="プロジェクト名">
+      </div>
+      <div id="items"></div>
+      <button class="btn btn-add" type="button" id="addItem">＋ 明細を追加</button>
+      <p class="hint">詳細は「・」で区切ると箇条書きとして折り返し表示されます。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>金額</legend>
+      <div class="field">
+        <label>ご請求金額（税込）</label>
+        <input type="number" id="total" placeholder="100000">
+      </div>
+    </fieldset>
+
+    <div class="toolbar">
+      <button class="btn btn-primary" type="button" id="printBtn">PDFで保存／印刷</button>
+      <button class="btn btn-ghost" type="button" id="clearBtn">入力をクリア</button>
+    </div>
+  </div>
+
+  <!-- ========== プレビュー（右） ========== -->
+  <div class="pane-preview">
+    <div class="preview-bar">
+      <span class="tip">右がA4プレビューです。「PDFで保存／印刷」→ 送信先を「PDFに保存」に。</span>
+      <button class="btn btn-primary" type="button" id="printBtn2" style="flex:0 0 auto;">PDFで保存</button>
+    </div>
+
+    <div class="sheet" id="sheet">
+      <div class="inv-header">
+        <div class="inv-title">請　求　書</div>
+        <div class="inv-issue">発行日：<span id="p-issueDate"></span></div>
+      </div>
+      <div class="inv-body">
+        <div class="parties">
+          <div class="party client">
+            <div class="tag">請求先</div>
+            <div class="name-row">
+              <span class="name" id="p-clientName"></span>
+              <span class="ml">御中</span>
+            </div>
+            <p class="addr" id="p-clientZip"></p>
+            <p class="addr" id="p-clientAddr1"></p>
+            <p class="addr" id="p-clientAddr2"></p>
+          </div>
+          <div class="party issuer">
+            <div class="tag">請求元</div>
+            <div class="name" id="p-issuerName"></div>
+            <p class="addr" id="p-issuerZip"></p>
+            <p class="addr" id="p-issuerAddr1"></p>
+            <p class="addr" id="p-issuerAddr2"></p>
+          </div>
+        </div>
+
+        <div class="amount-box">
+          <span class="lbl">ご請求金額（税込）</span>
+          <span class="val" id="p-total"></span>
+        </div>
+
+        <p class="due">お振込期日：<span id="p-due"></span></p>
+
+        <div class="section-title">作業明細<span class="proj" id="p-project"></span></div>
+        <table class="items">
+          <thead><tr><th>作業内容</th></tr></thead>
+          <tbody id="p-items"></tbody>
+        </table>
+
+        <div class="section-title">お振込先</div>
+        <div class="bank">
+          <dl>
+            <dt>金融機関</dt><dd id="p-bankName"></dd>
+            <dt>支店名</dt><dd id="p-bankBranch"></dd>
+            <dt>口座種別</dt><dd id="p-bankType"></dd>
+            <dt>口座番号</dt><dd id="p-bankNumber"></dd>
+            <dt>口座名義</dt><dd id="p-bankHolder"></dd>
+          </dl>
+        </div>
+
+        <div class="notes">
+          <div class="section-title" style="margin-bottom:3mm;">備考</div>
+          <p>上記のとおりご請求申し上げます。</p>
+          <p>ご不明な点がございましたら、下記連絡先までお問い合わせください。</p>
+          <p>Email：<span id="p-email"></span>　TEL：<span id="p-tel"></span></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const STORAGE_KEY = "invoice-generator-data-v1";
+
+// 単純テキスト項目（id → プレビュー要素id、変換関数）
+const FIELDS = [
+  ["invoiceDate",  "p-issueDate"],
+  ["clientName",   "p-clientName"],
+  ["clientZip",    "p-clientZip"],
+  ["clientAddr1",  "p-clientAddr1"],
+  ["clientAddr2",  "p-clientAddr2"],
+  ["issuerName",   "p-issuerName"],
+  ["issuerZip",    "p-issuerZip"],
+  ["issuerAddr1",  "p-issuerAddr1"],
+  ["issuerAddr2",  "p-issuerAddr2"],
+  ["paymentDue",   "p-due"],
+  ["project",      "p-project"],
+  ["bankName",     "p-bankName"],
+  ["bankBranch",   "p-bankBranch"],
+  ["bankType",     "p-bankType"],
+  ["bankNumber",   "p-bankNumber"],
+  ["bankHolder",   "p-bankHolder"],
+  ["issuerEmail",  "p-email"],
+  ["issuerTel",    "p-tel"],
+];
+
+const itemsContainer = document.getElementById("items");
+
+function yen(n){
+  const num = parseInt(n, 10);
+  if (isNaN(num)) return "¥0";
+  return "¥" + num.toLocaleString("ja-JP");
+}
+
+// ---- 明細行のDOM生成 ----
+function makeItemRow(title = "", detail = "") {
+  const div = document.createElement("div");
+  div.className = "item";
+  div.innerHTML = `
+    <button class="del" type="button" title="削除">×</button>
+    <div class="field">
+      <label>作業内容（見出し）</label>
+      <input type="text" class="it-title" placeholder="例）機能実装">
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>詳細（任意・「・」区切り）</label>
+      <textarea class="it-detail" placeholder="詳細A・詳細B・詳細C"></textarea>
+    </div>`;
+  div.querySelector(".it-title").value = title;
+  div.querySelector(".it-detail").value = detail;
+  div.querySelector(".del").addEventListener("click", () => {
+    div.remove();
+    render(); save();
+  });
+  div.querySelectorAll("input,textarea").forEach(el =>
+    el.addEventListener("input", () => { render(); save(); })
+  );
+  return div;
+}
+
+function addItem(title, detail) {
+  itemsContainer.appendChild(makeItemRow(title, detail));
+}
+
+function getItems() {
+  return [...itemsContainer.querySelectorAll(".item")].map(it => ({
+    title:  it.querySelector(".it-title").value,
+    detail: it.querySelector(".it-detail").value,
+  }));
+}
+
+// ---- プレビュー描画 ----
+function render() {
+  for (const [inId, outId] of FIELDS) {
+    const v = document.getElementById(inId).value.trim();
+    const out = document.getElementById(outId);
+    if (inId === "project") {
+      out.textContent = v ? ("─  " + v) : "";
+      continue;
+    }
+    out.textContent = v;
+  }
+
+  // 金額
+  document.getElementById("p-total").textContent = yen(document.getElementById("total").value);
+
+  // 明細テーブル
+  const tbody = document.getElementById("p-items");
+  tbody.innerHTML = "";
+  const items = getItems().filter(i => i.title.trim() || i.detail.trim());
+  if (items.length === 0) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><span class="it-title empty">（明細未入力）</span></td>`;
+    tbody.appendChild(tr);
+  } else {
+    for (const it of items) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+
+      const title = document.createElement("div");
+      title.className = "it-title";
+      title.textContent = it.title;
+      td.appendChild(title);
+
+      const detail = it.detail.trim();
+      if (detail) {
+        const parts = detail.split("・").map(s => s.trim()).filter(Boolean);
+        const wrap = document.createElement("div");
+        wrap.className = "it-detail";
+        parts.forEach((p, i) => {
+          const ln = document.createElement("span");
+          ln.className = "ln";
+          ln.textContent = (i === 0 ? "└ " : "　 ") + p;
+          wrap.appendChild(ln);
+        });
+        td.appendChild(wrap);
+      }
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+  }
+}
+
+// ---- 保存・復元 ----
+function collect() {
+  const data = { items: getItems() };
+  document.querySelectorAll(".pane-input input, .pane-input textarea").forEach(el => {
+    if (el.id) data[el.id] = el.value;
+  });
+  return data;
+}
+
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collect())); }
+  catch (e) { /* localStorage 不可環境は無視 */ }
+}
+
+function restore() {
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); }
+  catch (e) {}
+
+  if (data) {
+    Object.keys(data).forEach(id => {
+      if (id === "items") return;
+      const el = document.getElementById(id);
+      if (el) el.value = data[id];
+    });
+    (data.items || []).forEach(it => addItem(it.title, it.detail));
+  }
+
+  // 明細が空ならデフォルトで1行用意
+  if (itemsContainer.children.length === 0) addItem();
+}
+
+// ---- イベント ----
+document.querySelectorAll(".pane-input input, .pane-input textarea").forEach(el =>
+  el.addEventListener("input", () => { render(); save(); })
+);
+document.getElementById("addItem").addEventListener("click", () => { addItem(); render(); save(); });
+document.getElementById("printBtn").addEventListener("click", () => window.print());
+document.getElementById("printBtn2").addEventListener("click", () => window.print());
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (!confirm("入力内容をすべて消去します。よろしいですか？")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  itemsContainer.innerHTML = "";
+  document.querySelectorAll(".pane-input input, .pane-input textarea").forEach(el => el.value = "");
+  addItem();
+  render();
+});
+
+// ---- 初期化 ----
+restore();
+render();
+</script>
+</body>
+</html>

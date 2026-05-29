@@ -1,0 +1,10 @@
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# 念のため：個人情報を含みうる成果物は公開リポジトリに入れない
+*.pdf
+*.docx
+請求書情報
